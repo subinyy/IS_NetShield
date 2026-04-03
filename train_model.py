@@ -6,6 +6,9 @@ XGBoost 모델을 학습하고 성능을 측정합니다.
     pip install xgboost scikit-learn pandas numpy matplotlib seaborn
 """
 
+import argparse
+import shutil
+
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
@@ -203,6 +206,41 @@ def load_model(path="./model/xgb_model.pkl"):
 
 
 # ─────────────────────────────────────────────────────────────
+# 7. 시스템 초기화 (Reset)
+# ─────────────────────────────────────────────────────────────
+
+def reset_system(model_dir: str = "./model", results_dir: str = "./results") -> None:
+    """
+    저장된 모델 및 결과 파일을 삭제하여 시스템을 초기 상태로 되돌립니다.
+
+    삭제 대상:
+      - {model_dir}/xgb_model.pkl  : 학습된 XGBoost 모델
+      - {results_dir}/*            : 평가 결과 및 시각화 파일
+    """
+    deleted = []
+
+    # 모델 파일 삭제
+    model_path = os.path.join(model_dir, "xgb_model.pkl")
+    if os.path.isfile(model_path):
+        os.remove(model_path)
+        deleted.append(model_path)
+
+    # 결과 디렉토리 초기화 (삭제 후 빈 디렉토리로 재생성)
+    if os.path.isdir(results_dir):
+        shutil.rmtree(results_dir)
+        os.makedirs(results_dir, exist_ok=True)
+        deleted.append(results_dir)
+
+    if deleted:
+        print("시스템 초기화 완료. 삭제된 항목:")
+        for item in deleted:
+            print(f"  - {item}")
+    else:
+        print("초기화할 파일이 없습니다. 이미 초기 상태입니다.")
+    print("새로운 학습을 시작하려면 train_model.py 를 실행하세요.")
+
+
+# ─────────────────────────────────────────────────────────────
 # 6. 단일 URL 예측 (API 연동용)
 # ─────────────────────────────────────────────────────────────
 
@@ -254,6 +292,24 @@ def _get_triggered_features(features: dict) -> list[str]:
 # ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="IS_NetShield 모델 학습 및 관리")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="저장된 모델과 결과 파일을 삭제하고 시스템을 초기 상태로 되돌립니다.",
+    )
+    parser.add_argument(
+        "--model-dir", default="./model", help="모델 저장 디렉토리 (기본값: ./model)"
+    )
+    parser.add_argument(
+        "--results-dir", default="./results", help="결과 저장 디렉토리 (기본값: ./results)"
+    )
+    args = parser.parse_args()
+
+    if args.reset:
+        reset_system(model_dir=args.model_dir, results_dir=args.results_dir)
+        sys.exit(0)
+
     df = load_dataset("F:\\other_class\\Information_Security\\malicious_phish.csv")
     #df = load_sample_data()
 
