@@ -5,14 +5,20 @@
 
 ```
 url_detection/
-├── 1_feature_engineering.py   # URL → 피처 추출
-├── 2_train_model.py           # XGBoost 학습 + 평가
-├── 3_benchmark.py             # --경쟁 모델과 성능 비교-- 취소 
+Information_Security/
+├── src/
+│   ├── feature_engineering.py   # URL → 피처 추출
+│   └── train_model.py           # XGBoost 학습 및 평가
+├── data_mal/
+│   ├── malicious_phish.csv      # 악성 URL 데이터셋
+│   └── online-valid.csv         # 정상 URL 데이터셋
 ├── model/
-│   └── xgb_model.pkl          # 학습된 모델 (자동 생성)
-└── results/
-    ├── model_evaluation.png   # confusion matrix + feature importance
-    └── benchmark_results.csv  # 비교 실험 결과
+│   └── xgb_model.pkl            # 학습된 모델
+├── results/
+│   ├── model_evaluation.png     # 모델 평가 결과 시각화
+│   └── benchmark_results.csv    # 성능 비교 결과
+├── .gitignore
+└── README.md
 ```
 
 ## 시작하기
