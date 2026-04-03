@@ -254,7 +254,7 @@ def _get_triggered_features(features: dict) -> list[str]:
 # ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    df = load_dataset("F:\\other_class\\Information_Security\\malicious_phish.csv")
+    df = load_dataset("F:\\other_class\\Information_Security\\malicious_phish.csv") #fork 하시는 분들은 수정해서 사용
     #df = load_sample_data()
 
     X, y = build_feature_matrix(df)
