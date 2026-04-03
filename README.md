@@ -143,7 +143,7 @@ python train_model.py
 
 ---
 
-## ⚖️ 비교 대상 (Additional)
+## ⚖️ 비교 대상 (Optioanl/예정)
 
 | 모델 | 특징 | 유형 |
 |:----:|------|:----:|
