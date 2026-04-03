@@ -89,7 +89,6 @@ Kaggle에서 `malicious_phish.csv` 다운로드:
 python train_model.py
 ```
 
-<img width="1787" height="736" alt="model_evaluation" src="https://github.com/user-attachments/assets/d0d060f0-657e-4856-8f26-2811d26ddea0" />
 
 ---
 
