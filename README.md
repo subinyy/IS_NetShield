@@ -78,10 +78,12 @@ pip install xgboost scikit-learn pandas numpy matplotlib seaborn requests
 
 ### 2️⃣ 데이터셋 다운로드
 
-Kaggle에서 `malicious_phish.csv` 다운로드:  
+[1] Kaggle - `malicious_phish.csv`:  
 🔗 https://www.kaggle.com/datasets/sid321axn/malicious-urls-dataset
 
 > 컬럼: `url`, `type` (benign / phishing / malware / defacement)
+
+[2] PhishTank (Cisco Talos) — CC BY-SA 2.5
 
 ### 3️⃣ 모델 학습
 
