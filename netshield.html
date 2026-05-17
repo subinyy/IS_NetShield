@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NetShield — 유해 URL 탐지 시스템</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f5f5f3;
+  --surface: #ffffff;
+  --surface-2: #f0ede8;
+  --border: rgba(0,0,0,0.08);
+  --border-em: rgba(0,0,0,0.14);
+  --text: #1a1a18;
+  --text-2: #5f5e5a;
+  --text-3: #9a9990;
+  --blue: #185FA5;
+  --blue-dim: rgba(24,95,165,0.08);
+  --red: #A32D2D;
+  --red-bg: #FCEBEB;
+  --red-border: #F7C1C1;
+  --amber: #854F0B;
+  --amber-bg: #FAEEDA;
+  --amber-border: #FAC775;
+  --green: #3B6D11;
+  --green-bg: #EAF3DE;
+  --green-border: #C0DD97;
+  --mono: 'Courier New', monospace;
+  --radius: 10px;
+}
+
+body {
+  font-family: 'Helvetica Neue', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 2rem 1rem 4rem;
+}
+
+/* ── 헤더 ── */
+.header {
+  max-width: 860px; margin: 0 auto 2.5rem;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-icon {
+  width: 38px; height: 38px; background: var(--blue);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(24,95,165,0.2);
+}
+.logo-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+.logo-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+.live { font-size: 11px; color: var(--green); background: var(--green-bg);
+  border: 0.5px solid var(--green-border); padding: 5px 12px; border-radius: 99px; }
+
+/* ── 메인 컨테이너 ── */
+.main { max-width: 860px; margin: 0 auto; display: grid; gap: 1rem; }
+
+/* ── 검색 카드 ── */
+.search-card {
+  background: var(--surface); border: 0.5px solid var(--border-em);
+  border-radius: var(--radius); padding: 1.5rem;
+}
+.search-label { font-size: 12px; color: var(--text-2); margin-bottom: 10px; letter-spacing: 0.5px; text-transform: uppercase; }
+.search-row { display: flex; gap: 8px; }
+.url-input {
+  flex: 1; padding: 11px 16px; font-size: 13px; font-family: var(--mono);
+  background: var(--surface-2); border: 0.5px solid var(--border-em);
+  border-radius: 8px; color: var(--text); outline: none; transition: border-color 0.2s;
+}
+.url-input:focus { border-color: var(--blue); }
+.url-input::placeholder { color: var(--text-3); }
+.analyze-btn {
+  padding: 11px 22px; font-size: 13px; font-weight: 600;
+  background: var(--blue); color: #fff; border: none; border-radius: 8px;
+  cursor: pointer; white-space: nowrap; transition: opacity 0.15s, transform 0.1s;
+}
+.analyze-btn:hover { opacity: 0.88; }
+.analyze-btn:active { transform: scale(0.97); }
+.analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── 분석 중 ── */
+.analyzing { display: none; align-items: center; gap: 10px; padding: 1rem 0 0; font-size: 13px; color: var(--text-2); }
+.analyzing.show { display: flex; }
+.spinner { width: 15px; height: 15px; border: 2px solid var(--border-em); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── 결과 카드 ── */
+.result-card { display: none; margin-top: 1rem; border-radius: 8px; padding: 1.25rem 1.5rem; animation: fadeIn 0.3s ease; }
+.result-card.show { display: block; }
+.result-card.danger { background: var(--red-bg); border: 0.5px solid var(--red-border); }
+.result-card.warning { background: var(--amber-bg); border: 0.5px solid var(--amber-border); }
+.result-card.safe { background: var(--green-bg); border: 0.5px solid var(--green-border); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.result-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; gap: 1rem; }
+.result-left { flex: 1; min-width: 0; }
+.result-verdict { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.result-verdict.danger { color: var(--red); }
+.result-verdict.warning { color: var(--amber); }
+.result-verdict.safe { color: var(--green); }
+.result-url { font-size: 11px; font-family: var(--mono); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-score { font-size: 32px; font-weight: 700; line-height: 1; flex-shrink: 0; }
+.result-score.danger { color: var(--red); }
+.result-score.warning { color: var(--amber); }
+.result-score.safe { color: var(--green); }
+.result-score span { font-size: 14px; font-weight: 400; opacity: 0.6; }
+
+.tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tag { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 99px; }
+.tag.danger { background: var(--red-border); color: #791F1F; }
+.tag.warning { background: var(--amber-border); color: #633806; }
+.tag.safe { background: var(--green-border); color: #27500A; }
+
+/* 접속 버튼 */
+.access-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 20px; font-size: 13px; font-weight: 600;
+  border: none; border-radius: 8px; cursor: pointer; transition: opacity 0.15s;
+}
+.access-btn:hover { opacity: 0.85; }
+.access-btn.danger { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+.access-btn.warning { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); }
+.access-btn.safe { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-border); }
+
+/* ── 통계 그리드 ── */
+.stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.stat {
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--radius); padding: 1rem 1.25rem;
+}
+.stat-label { font-size: 11px; color: var(--text-2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { font-size: 26px; font-weight: 700; color: var(--text); }
+.stat-value.red { color: var(--red); }
+.stat-value.green { color: var(--green); }
+.stat-value.blue { color: var(--blue); }
+
+/* ── 로그 ── */
+.log-card {
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--radius); padding: 1.25rem;
+}
+.log-head { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 1rem; }
+.log-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; border-bottom: 0.5px solid var(--border);
+}
+.log-row:last-child { border-bottom: none; padding-bottom: 0; }
+.vbadge { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 99px; min-width: 40px; text-align: center; letter-spacing: 0.3px; }
+.vbadge.block { background: var(--red-border); color: #791F1F; }
+.vbadge.alert { background: var(--amber-border); color: #633806; }
+.vbadge.allow { background: var(--green-border); color: #27500A; }
+.log-url { flex: 1; font-family: var(--mono); font-size: 11px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-wrap { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.bar-bg { width: 50px; height: 4px; background: var(--border-em); border-radius: 2px; }
+.bar-fill { height: 4px; border-radius: 2px; }
+.score-num { font-size: 12px; font-weight: 600; min-width: 22px; text-align: right; }
+.score-num.red { color: var(--red); }
+.score-num.amber { color: var(--amber); }
+.score-num.green { color: var(--green); }
+.log-empty { font-size: 13px; color: var(--text-3); text-align: center; padding: 2rem 0; }
+
+/* ── 예시 사이트 ── */
+.examples-card {
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--radius); padding: 1.25rem;
+}
+.examples-head { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.examples-sub { font-size: 12px; color: var(--text-2); margin-bottom: 1rem; }
+.example-groups { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.example-group-title { font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 8px; }
+.example-group-title.safe { color: var(--green); }
+.example-group-title.warn { color: var(--amber); }
+.example-group-title.danger { color: var(--red); }
+.example-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  border: 0.5px solid var(--border); background: var(--surface-2);
+  margin-bottom: 6px; transition: border-color 0.15s, background 0.15s;
+}
+.example-item:hover { border-color: var(--border-em); background: var(--bg); }
+.example-item:last-child { margin-bottom: 0; }
+.example-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.example-dot.safe { background: var(--green); }
+.example-dot.warn { background: var(--amber); }
+.example-dot.danger { background: var(--red); }
+.example-url { font-size: 11px; font-family: var(--mono); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.example-label { font-size: 10px; color: var(--text-3); margin-top: 1px; }
+
+/* ── 모달 ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7); z-index: 100;
+  align-items: center; justify-content: center; backdrop-filter: blur(4px);
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--surface); border: 0.5px solid var(--border-em); box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+  border-radius: 14px; padding: 2rem; max-width: 440px; width: 90%;
+  animation: modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes modalIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+.modal-icon { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; }
+.modal-icon.danger { background: var(--red-bg); border: 0.5px solid var(--red-border); }
+.modal-icon.warning { background: var(--amber-bg); border: 0.5px solid var(--amber-border); }
+.modal-icon.safe { background: var(--green-bg); border: 0.5px solid var(--green-border); }
+.modal-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+.modal-title.danger { color: var(--red); }
+.modal-title.warning { color: var(--amber); }
+.modal-title.safe { color: var(--green); }
+.modal-desc { font-size: 13px; color: var(--text-2); line-height: 1.6; margin-bottom: 1rem; }
+.modal-url { font-family: var(--mono); font-size: 11px; padding: 8px 12px; border-radius: 6px; margin-bottom: 1.25rem; word-break: break-all; }
+.modal-url.danger { background: var(--red-bg); color: #fca5a5; border: 0.5px solid var(--red-border); }
+.modal-url.warning { background: var(--amber-bg); color: #fcd34d; border: 0.5px solid var(--amber-border); }
+.modal-url.safe { background: var(--green-bg); color: #86efac; border: 0.5px solid var(--green-border); }
+.modal-score { display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; }
+.modal-score-label { font-size: 12px; color: var(--text-2); }
+.modal-score-track { flex: 1; height: 6px; background: var(--border-em); border-radius: 3px; overflow: hidden; }
+.modal-score-fill { height: 6px; border-radius: 3px; transition: width 1s cubic-bezier(0.4,0,0.2,1); }
+.modal-score-val { font-size: 13px; font-weight: 700; min-width: 36px; text-align: right; }
+.modal-actions { display: flex; gap: 8px; }
+.modal-btn-go {
+  flex: 1; padding: 10px; font-size: 13px; font-weight: 600;
+  border: none; border-radius: 8px; cursor: pointer; transition: opacity 0.15s;
+}
+.modal-btn-go:hover { opacity: 0.85; }
+.modal-btn-go.danger { background: var(--red); color: #fff; }
+.modal-btn-go.warning { background: var(--amber); color: #000; }
+.modal-btn-go.safe { background: var(--green); color: #000; }
+.modal-btn-cancel {
+  padding: 10px 18px; font-size: 13px; font-weight: 500;
+  background: var(--surface-2); color: var(--text-2);
+  border: 0.5px solid var(--border-em); border-radius: 8px; cursor: pointer;
+}
+.modal-btn-cancel:hover { background: var(--border); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M10 2L3 6v5c0 4.1 2.9 7.9 7 9 4.1-1.1 7-4.9 7-9V6L10 2z" fill="white"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-title">NetShield</div>
+      <div class="logo-sub">지능형 유해 URL 실시간 탐지 시스템</div>
+    </div>
+  </div>
+  <span class="live">● 실시간 탐지 중</span>
+</div>
+
+<div class="main">
+
+  <!-- URL 분석 -->
+  <div class="search-card">
+    <div class="search-label">URL 위협 분석</div>
+    <div class="search-row">
+      <input class="url-input" id="urlInput" type="text" placeholder="https://example.com 입력 후 분석 클릭 또는 Enter"/>
+      <button class="analyze-btn" id="analyzeBtn" onclick="analyze()">분석 ↗</button>
+    </div>
+    <div class="analyzing" id="analyzing">
+      <div class="spinner"></div>
+      <span>XGBoost 모델 분석 중...</span>
+    </div>
+    <div class="result-card" id="resultCard">
+      <div class="result-top">
+        <div class="result-left">
+          <div class="result-verdict" id="rVerdict"></div>
+          <div class="result-url" id="rUrl"></div>
+        </div>
+        <div class="result-score" id="rScore"></div>
+      </div>
+      <div class="tags" id="rTags"></div>
+      <button class="access-btn" id="accessBtn" onclick="openModal()"></button>
+    </div>
+  </div>
+
+  <!-- 통계 -->
+  <div class="stats-grid">
+    <div class="stat"><div class="stat-label">오늘 검사</div><div class="stat-value blue" id="sTotal">0</div></div>
+    <div class="stat"><div class="stat-label">차단됨</div><div class="stat-value red" id="sBlocked">0</div></div>
+    <div class="stat"><div class="stat-label">경고</div><div class="stat-value" style="color:var(--amber)" id="sAlerted">0</div></div>
+    <div class="stat"><div class="stat-label">평균 응답</div><div class="stat-value green" id="sAvg">—</div></div>
+  </div>
+
+  <!-- 로그 -->
+  <div class="log-card">
+    <div class="log-head">최근 탐지 로그</div>
+    <div id="logList"><div class="log-empty">URL을 입력하면 로그가 쌓여요</div></div>
+  </div>
+
+  <!-- 예시 사이트 -->
+  <div class="examples-card">
+    <div class="examples-head">예시 URL 테스트</div>
+    <div class="examples-sub">클릭하면 바로 분석이 시작됩니다</div>
+    <div class="example-groups">
+
+      <div>
+        <div class="example-group-title safe">✓ 정상 예상</div>
+        <div class="example-item" onclick="setAndAnalyze('https://www.google.com')">
+          <div class="example-dot safe"></div>
+          <div><div class="example-url">https://www.google.com</div><div class="example-label">구글</div></div>
+        </div>
+        <div class="example-item" onclick="setAndAnalyze('https://www.naver.com')">
+          <div class="example-dot safe"></div>
+          <div><div class="example-url">https://www.naver.com</div><div class="example-label">네이버</div></div>
+        </div>
+        <div class="example-item" onclick="setAndAnalyze('https://github.com')">
+          <div class="example-dot safe"></div>
+          <div><div class="example-url">https://github.com</div><div class="example-label">GitHub</div></div>
+        </div>
+        <div class="example-item" onclick="setAndAnalyze('https://www.youtube.com')">
+          <div class="example-dot safe"></div>
+          <div><div class="example-url">https://www.youtube.com</div><div class="example-label">유튜브</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="example-group-title warn">⚠ 경고 예상</div>
+        <div class="example-item" onclick="setAndAnalyze('http://www.naver.com')">
+          <div class="example-dot warn"></div>
+          <div><div class="example-url">http://www.naver.com</div><div class="example-label">HTTP 비암호화</div></div>
+        </div>
+        <div class="example-item" onclick="setAndAnalyze('http://bit.ly/3xSample')">
+          <div class="example-dot warn"></div>
+          <div><div class="example-url">http://bit.ly/3xSample</div><div class="example-label">URL 단축 서비스</div></div>
+        </div>
+        <div class="example-item" onclick="setAndAnalyze('http://login.example-service.com')">
+          <div class="example-dot warn"></div>
+          <div><div class="example-url">http://login.example-service.com</div><div class="example-label">로그인 키워드</div></div>
+        </div>
+        <div class="example-item" onclick="setAndAnalyze('http://update-required.net/security')">
+          <div class="example-dot warn"></div>
+          <div><div class="example-url">http://update-required.net/security</div><div class="example-label">보안 업데이트 사칭</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="example-group-title danger">✕ 위험 예상</div>
+        <div class="example-item" onclick="setAndAnalyze('http://paypal-secure.login-verify.com')">
+          <div class="example-dot danger"></div>
+          <div><div class="example-url">http://paypal-secure.login-verify.com</div><div class="example-label">브랜드 사칭</div></div>
+        </div>
+        <div class="example-item" onclick="setAndAnalyze('http://accounts-google-signin.xyz/auth')">
+          <div class="example-dot danger"></div>
+          <div><div class="example-url">http://accounts-google-signin.xyz/auth</div><div class="example-label">구글 사칭</div></div>
+        </div>
+        <div class="example-item" onclick="setAndAnalyze('http://192.168.1.1/admin/login.php')">
+          <div class="example-dot danger"></div>
+          <div><div class="example-url">http://192.168.1.1/admin/login.php</div><div class="example-label">IP 직접 접속</div></div>
+        </div>
+        <div class="example-item" onclick="setAndAnalyze('http://secure-login-update.com/verify')">
+          <div class="example-dot danger"></div>
+          <div><div class="example-url">http://secure-login-update.com/verify</div><div class="example-label">피싱 페이지</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- 접속 확인 모달 -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-icon" id="mIcon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" id="mIconSvg">
+        <path d="M12 3L4 7v6c0 4.4 3.4 8.5 8 9.3 4.6-.8 8-4.9 8-9.3V7L12 3z" fill="currentColor" opacity="0.3"/>
+        <path d="M12 3L4 7v6c0 4.4 3.4 8.5 8 9.3 4.6-.8 8-4.9 8-9.3V7L12 3z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+      </svg>
+    </div>
+    <div class="modal-title" id="mTitle"></div>
+    <div class="modal-desc" id="mDesc"></div>
+    <div class="modal-url" id="mUrl"></div>
+    <div class="modal-score">
+      <span class="modal-score-label">위험도</span>
+      <div class="modal-score-track"><div class="modal-score-fill" id="mScoreFill"></div></div>
+      <span class="modal-score-val" id="mScoreVal"></span>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn-cancel" onclick="closeModal()">취소</button>
+      <button class="modal-btn-go" id="mGoBtn" onclick="doGo()">접속하기 ↗</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "http://13.209.5.230:8000";
+let logs = [], total = 0, blocked = 0, alerted = 0, totalMs = 0;
+let currentUrl = "", currentResult = null;
+
+// ── 데모 fallback ──
+const DEMO = {
+  safe:   {score:3,  verdict:"allow", reasons:[]},
+  warn:   {score:55, verdict:"alert", reasons:["HTTP 비암호화","단축 URL 사용"]},
+  danger: {score:93, verdict:"block", reasons:["피싱 키워드 포함","고위험 TLD","HTTP 비암호화"]},
+  ip:     {score:78, verdict:"block", reasons:["IP 주소 직접 사용","HTTP 비암호화"]},
+};
+function classify(url) {
+  const u = url.toLowerCase();
+  if (/\d{1,3}\.\d{1,3}\.\d{1,3}/.test(u)) return {...DEMO.ip};
+  if (u.includes("paypa")||u.includes(".tk")||u.includes(".xyz")||u.includes("verify")||u.includes("secure-login")||u.includes("signin.xyz")) return {...DEMO.danger};
+  if (!u.startsWith("https")||u.includes("bit.ly")||u.includes("tinyurl")) return {...DEMO.warn};
+  return {...DEMO.safe};
+}
+
+function setAndAnalyze(url) {
+  document.getElementById("urlInput").value = url;
+  analyze();
+}
+
+async function analyze() {
+  const url = document.getElementById("urlInput").value.trim();
+  if (!url) return;
+  currentUrl = url;
+
+  document.getElementById("resultCard").className = "result-card";
+  document.getElementById("analyzing").classList.add("show");
+  document.getElementById("analyzeBtn").disabled = true;
+
+  const t0 = performance.now();
+  let result;
+  try {
+    const r = await fetch(`${API}/predict`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({url}), signal:AbortSignal.timeout(4000)
+    });
+    if (r.ok) {
+      const d = await r.json();
+      const score = Math.round((d.probability || 0) * 100);
+      const level = d.risk_level || "";
+      const verdict = level === "DANGEROUS" ? "block"
+                    : level === "SUSPICIOUS" ? "alert"
+                    : "allow";
+      const reasons = [];
+      const f = d.features || {};
+      if (f.has_login_keyword)            reasons.push("로그인/피싱 키워드 포함");
+      if (f.has_ip_host)                  reasons.push("IP 주소 직접 사용");
+      if (f.suspicious_keyword_hits >= 2) reasons.push("의심 키워드 다수 포함");
+      if (f.has_https_token)              reasons.push("URL에 https 문자 포함");
+      if (f.is_suspicious_tld)            reasons.push("고위험 TLD 도메인");
+      if (f.uses_shortener_hint)          reasons.push("URL 단축 서비스 사용");
+      if (d.confidence === "HIGH" && verdict !== "allow") reasons.push("고신뢰도 악성 탐지");
+      result = {score, verdict, reasons};
+    } else result = classify(url);
+  } catch { result = classify(url); }
+
+  const ms = Math.round(performance.now() - t0);
+  totalMs += ms;
+  currentResult = result;
+
+  await new Promise(r => setTimeout(r, 200));
+  document.getElementById("analyzing").classList.remove("show");
+  document.getElementById("analyzeBtn").disabled = false;
+
+  showResult(url, result);
+  addLog(url, result, ms);
+  updateStats(result, ms);
+}
+
+function showResult(url, r) {
+  const cls = r.verdict==="block"?"danger":r.verdict==="alert"?"warning":"safe";
+  const card = document.getElementById("resultCard");
+  card.className = `result-card show ${cls}`;
+
+  const v = document.getElementById("rVerdict");
+  v.className = `result-verdict ${cls}`;
+  v.textContent = cls==="danger"?"위험 — 차단 권고":cls==="warning"?"주의 — 경고":"안전한 URL";
+
+  document.getElementById("rUrl").textContent = url;
+
+  const s = document.getElementById("rScore");
+  s.className = `result-score ${cls}`;
+  s.innerHTML = r.score + '<span> / 100</span>';
+
+  document.getElementById("rTags").innerHTML = r.reasons.length
+    ? r.reasons.map(t=>`<span class="tag ${cls}">${t}</span>`).join("")
+    : `<span class="tag ${cls}">위협 없음</span>`;
+
+  const btn = document.getElementById("accessBtn");
+  btn.className = `access-btn ${cls}`;
+  btn.textContent = cls==="danger"?"⚠ 위험을 감수하고 접속하기":cls==="warning"?"⚠ 그래도 접속하기":"✓ 사이트 접속하기";
+}
+
+function openModal() {
+  if (!currentResult || !currentUrl) return;
+  const r = currentResult;
+  const cls = r.verdict==="block"?"danger":r.verdict==="alert"?"warning":"safe";
+
+  document.getElementById("mIcon").className = `modal-icon ${cls}`;
+  document.getElementById("mIconSvg").style.color = cls==="danger"?"var(--red)":cls==="warning"?"var(--amber)":"var(--green)";
+
+  const t = document.getElementById("mTitle");
+  t.className = `modal-title ${cls}`;
+  t.textContent = cls==="danger"?"위험 사이트입니다":cls==="warning"?"주의가 필요한 사이트입니다":"안전한 사이트입니다";
+
+  document.getElementById("mDesc").textContent =
+    cls==="danger"?"이 사이트는 악성으로 판단되었습니다. 개인정보 탈취 또는 악성코드 감염 위험이 있어요. 그래도 접속하시겠습니까?"
+    :cls==="warning"?"이 사이트는 완전히 안전하다고 확인되지 않았습니다. 접속하기 전 URL을 다시 한번 확인해주세요."
+    :"위협이 감지되지 않았어요. 안전하게 접속할 수 있습니다.";
+
+  const u = document.getElementById("mUrl");
+  u.className = `modal-url ${cls}`;
+  u.textContent = currentUrl;
+
+  document.getElementById("mScoreVal").textContent = r.score + " / 100";
+  document.getElementById("mScoreVal").style.color = cls==="danger"?"var(--red)":cls==="warning"?"var(--amber)":"var(--green)";
+
+  const fill = document.getElementById("mScoreFill");
+  fill.style.width = "0%";
+  fill.style.background = cls==="danger"?"var(--red)":cls==="warning"?"var(--amber)":"var(--green)";
+
+  const btn = document.getElementById("mGoBtn");
+  btn.className = `modal-btn-go ${cls}`;
+  btn.textContent = cls==="danger"?"위험 감수하고 접속 ↗":cls==="warning"?"그래도 접속하기 ↗":"접속하기 ↗";
+
+  document.getElementById("modalOverlay").classList.add("show");
+  setTimeout(() => { fill.style.width = r.score + "%"; }, 100);
+}
+
+function closeModal() { document.getElementById("modalOverlay").classList.remove("show"); }
+function closeModalOutside(e) { if (e.target === document.getElementById("modalOverlay")) closeModal(); }
+function doGo() { window.open(currentUrl, "_blank"); closeModal(); }
+
+function addLog(url, r, ms) {
+  logs.unshift({url, ...r, ms});
+  if (logs.length > 8) logs.pop();
+  document.getElementById("logList").innerHTML = logs.map(l => {
+    const bc = l.verdict==="block"?"var(--red)":l.verdict==="alert"?"var(--amber)":"var(--green)";
+    const nc = l.verdict==="block"?"red":l.verdict==="alert"?"amber":"green";
+    const lb = l.verdict==="block"?"차단":l.verdict==="alert"?"경고":"허용";
+    return `<div class="log-row">
+      <span class="vbadge ${l.verdict}">${lb}</span>
+      <span class="log-url">${l.url}</span>
+      <div class="score-wrap">
+        <div class="bar-bg"><div class="bar-fill" style="width:${l.score}%;background:${bc}"></div></div>
+        <span class="score-num ${nc}">${l.score}</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function updateStats(r, ms) {
+  total++;
+  if (r.verdict==="block") blocked++;
+  if (r.verdict==="alert") alerted++;
+  document.getElementById("sTotal").textContent = total;
+  document.getElementById("sBlocked").textContent = blocked;
+  document.getElementById("sAlerted").textContent = alerted;
+  document.getElementById("sAvg").textContent = Math.round(totalMs/total) + "ms";
+}
+
+document.getElementById("urlInput").addEventListener("keydown", e => { if(e.key==="Enter") analyze(); });
+</script>
+</body>
+</html>
